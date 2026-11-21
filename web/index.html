@@ -1,0 +1,936 @@
+<title>Monochromator Workbench</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Dark-first (user preference); light via the header toggle. Layout: instrument console. Sticky tab bar, then per tab a narrow parameter column beside a wide results column (summary numbers first, then plots and tables). */
+:root {
+  --bg: #0d1218; --panel: #141b23; --sunk: #10161d; --ink: #e6ecf2; --ink-2: #a8b5c2; --ink-3: #7d8b99;
+  --rule: #26313c; --grid: #1d2630; --accent: #6aa5f5; --accent-soft: #19283b; --warn: #e3a64a; --warn-soft: #2a2114;
+  --bad: #f07a70; --good: #5cc48d;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9085e9;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #eef1f5;
+  --panel: #ffffff;
+  --sunk: #f6f8fa;
+  --ink: #101923;
+  --ink-2: #44525f;
+  --ink-3: #6f7c88;
+  --rule: #d7dde4;
+  --grid: #e7ebf0;
+  --accent: #1b56b0;
+  --accent-soft: #e3ecf9;
+  --warn: #8a5300;
+  --warn-soft: #fbf0dc;
+  --bad: #ad2a21;
+  --good: #1a6e43;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #6250d6;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.45; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+.wrap { max-width: 1380px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--panel); border-bottom: 1px solid var(--rule); }
+.top .wrap { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 28px; padding-block: 10px 0; }
+.brand { display: flex; align-items: baseline; gap: 12px; padding-bottom: 10px; }
+.brand h1 { font-family: var(--f-display); font-weight: 600; font-size: 20px; margin: 0; letter-spacing: 0.01em; }
+.brand span { color: var(--ink-3); font-size: 12px; }
+.theme-btn { margin-left: auto; order: 3; margin-bottom: 8px; }
+nav.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+nav.tabs button { font: 500 13.5px var(--f-body); color: var(--ink-2); background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px 10px; cursor: pointer; white-space: nowrap; }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+main { padding-block: 20px 40px; }
+.tab { display: grid; grid-template-columns: minmax(260px, 310px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 880px) { .tab { grid-template-columns: minmax(0, 1fr); } }
+.params { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 14px 16px; display: grid; gap: 14px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 64px); max-height: calc(100vh - 84px); overflow-y: auto; }
+@media (max-width: 880px) { .params { position: static; max-height: none; } }
+.params h2 { font: 600 15px var(--f-display); margin: 0; letter-spacing: 0.01em; }
+.params .lede { color: var(--ink-3); font-size: 12.5px; margin: -8px 0 0; }
+fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+fieldset legend { font: 500 11px var(--f-body); text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-3); padding: 0 0 6px; grid-column: 1 / -1; }
+.f { display: grid; gap: 3px; min-width: 0; }
+.f.full { grid-column: 1 / -1; }
+.f label { font-size: 12px; color: var(--ink-2); }
+.f label i { font-family: var(--f-body); font-style: italic; }
+.f label .u { color: var(--ink-3); }
+input, select { font: 13.5px var(--f-mono); color: var(--ink); background: var(--sunk); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 7px; width: 100%; min-width: 0; }
+select { font-family: var(--f-body); }
+input:hover, select:hover { border-color: var(--ink-3); }
+.hkl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.btn { font: 500 12.5px var(--f-body); color: var(--accent); background: var(--accent-soft); border: 1px solid transparent; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.ghost { background: none; border-color: var(--rule); color: var(--ink-2); }
+.btn.ghost:hover { border-color: var(--ink-3); color: var(--ink); }
+
+.results { display: grid; gap: 16px; min-width: 0; }
+.status { font-size: 13px; color: var(--ink-3); padding: 6px 0; }
+.err { background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 10px 12px; font-size: 13px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.kpi { background: var(--panel); padding: 10px 12px 11px; min-width: 0; }
+.kpi .k { font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: var(--ink-3); }
+.kpi .v { font: 500 21px/1.25 var(--f-mono); font-variant-numeric: tabular-nums; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .v small { font-size: 12.5px; color: var(--ink-2); font-weight: 400; }
+.kpi .s { font: 12px var(--f-mono); color: var(--ink-3); margin-top: 2px; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 14px 16px 12px; min-width: 0; }
+.card h3 { font: 600 14.5px var(--f-display); margin: 0 0 2px; letter-spacing: 0.01em; text-wrap: balance; }
+.card .sub { font-size: 12.5px; color: var(--ink-3); margin: 0 0 10px; max-width: 75ch; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+@media (max-width: 420px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0 28px; }
+.kv div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--grid); font-size: 13px; min-width: 0; }
+.kv dt { color: var(--ink-2); }
+.kv dd { margin: 0; font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { font: 500 12px var(--f-body); letter-spacing: 0.01em; color: var(--ink-3); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td.dim { color: var(--ink-3); }
+.pill { display: inline-block; font: 500 11px var(--f-body); padding: 1px 7px; border-radius: 10px; }
+.pill.ok { color: var(--good); border: 1px solid currentColor; }
+.pill.warn { color: var(--warn); border: 1px solid currentColor; }
+.pill.off { color: var(--ink-3); border: 1px solid var(--rule); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ink-2); margin: 0 0 4px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { flex: none; }
+.chart { position: relative; min-height: 120px; }
+.chart svg.plot { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font-family: var(--f-mono); font-size: 10.5px; fill: var(--ink-3); }
+.chart text.al { font-family: var(--f-body); font-size: 11.5px; fill: var(--ink-2); }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 5px; padding: 6px 8px; font: 11.5px var(--f-mono); color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,.12); white-space: nowrap; z-index: 2; }
+.tip b { font-weight: 500; color: var(--ink-2); display: block; margin-bottom: 2px; }
+.tip i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 6px; }
+
+details.notes { font-size: 13px; color: var(--ink-2); }
+details.notes summary { cursor: pointer; font: 600 13.5px var(--f-display); color: var(--ink); }
+details.notes ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 5px; max-width: 95ch; }
+details.notes code, .mono { font-family: var(--f-mono); font-size: 12.5px; }
+.eq { font-family: var(--f-mono); font-size: 12.5px; background: var(--sunk); padding: 1px 5px; border-radius: 3px; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+footer { color: var(--ink-3); font-size: 12px; padding-block: 0 32px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><h1>Monochromator Workbench</h1><span>DCM · DMM · bent Laue · bent Bragg</span></div>
+    <button type="button" class="btn ghost theme-btn" id="themeBtn" aria-label="Switch to light theme">Light</button>
+    <nav class="tabs" role="tablist" aria-label="Calculators">
+      <button role="tab" id="t-dcm" data-tab="dcm" aria-selected="true">Crystal DCM</button>
+      <button role="tab" id="t-dmm" data-tab="dmm" aria-selected="false">Multilayer DMM</button>
+      <button role="tab" id="t-laue" data-tab="bent-laue" aria-selected="false">Bent Laue</button>
+      <button role="tab" id="t-bragg" data-tab="bent-bragg" aria-selected="false">Bent Bragg focusing</button>
+      <button role="tab" id="t-refl" data-tab="reflections" aria-selected="false">Reflection table</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="status" id="loadStatus">Loading scattering-factor tables…</div>
+
+  <!-- ===================== DCM ===================== -->
+  <section class="tab" id="p-dcm" role="tabpanel" aria-labelledby="t-dcm">
+    <form class="params" id="fDcm" autocomplete="off">
+      <h2>Double-crystal monochromator</h2>
+      <p class="lede">Flat perfect crystals in the non-dispersive (+,−) setting. Fixed-exit or channel-cut.</p>
+      <fieldset><legend>Reflection</legend>
+        <div class="f"><label for="dCr">Crystal</label><select id="dCr" class="crystal-select"></select></div>
+        <div class="f"><label>hkl</label><div class="hkl"><input id="dH" type="number" step="1" value="1" aria-label="h"><input id="dK" type="number" step="1" value="1" aria-label="k"><input id="dL" type="number" step="1" value="1" aria-label="l"></div></div>
+        <div class="f"><label for="dE">Energy <span class="u">keV</span></label><input id="dE" type="number" step="0.01" value="10"></div>
+        <div class="f"><label for="dPol">Polarization</label><select id="dPol"><option value="sigma">σ (horizontal plane, vertical DCM)</option><option value="pi">π</option></select></div>
+        <div class="f"><label for="dA1">Asymmetry 1st <span class="u">deg</span></label><input id="dA1" type="number" step="0.1" value="0"></div>
+        <div class="f"><label for="dA2">Asymmetry 2nd <span class="u">deg</span></label><input id="dA2" type="number" step="0.1" value="0"></div>
+        <div class="f"><label for="dT">Thickness <span class="u">µm</span></label><input id="dT" type="number" step="1" placeholder="thick"></div>
+        <div class="f"><label for="dB">Debye–Waller B <span class="u">Å²</span></label><input id="dB" type="number" step="0.01" class="b-input"></div>
+      </fieldset>
+      <fieldset><legend>Beam</legend>
+        <div class="f"><label for="dDiv">Divergence FWHM <span class="u">µrad</span></label><input id="dDiv" type="number" step="0.5" value="10"></div>
+        <div class="f"><label for="dBeam">Beam height <span class="u">mm</span></label><input id="dBeam" type="number" step="0.1" value="1"></div>
+      </fieldset>
+      <fieldset><legend>Imaging</legend>
+        <div class="f"><label for="dSrc">Source size FWHM <span class="u">µm</span></label><input id="dSrc" type="number" step="1" value="10"></div>
+        <div class="f"><label for="dL1">Source → optic <span class="u">m</span></label><input id="dL1" type="number" step="0.5" value="30"></div>
+        <div class="f"><label for="dL2">Mono → sample <span class="u">m</span></label><input id="dL2" type="number" step="0.5" value="25"></div>
+        <div class="f"><label for="dZ2">Sample → detector <span class="u">m</span></label><input id="dZ2" type="number" step="0.05" value="0.3"></div>
+      </fieldset>
+      <fieldset><legend>Geometry</legend>
+        <div class="f full"><label for="dMode">Mode</label><select id="dMode"><option value="fixed">Fixed exit (set offset)</option><option value="cc">Channel-cut (set gap)</option></select></div>
+        <div class="f"><label for="dOff" id="dOffLbl">Beam offset <span class="u">mm</span></label><input id="dOff" type="number" step="0.5" value="25"></div>
+        <div class="f"></div>
+        <div class="f"><label for="dEmin">Scan from <span class="u">keV</span></label><input id="dEmin" type="number" step="0.5" value="5"></div>
+        <div class="f"><label for="dEmax">to <span class="u">keV</span></label><input id="dEmax" type="number" step="0.5" value="30"></div>
+      </fieldset>
+    </form>
+    <div class="results" id="rDcm"></div>
+  </section>
+
+  <!-- ===================== DMM ===================== -->
+  <section class="tab" id="p-dmm" role="tabpanel" aria-labelledby="t-dmm" hidden>
+    <form class="params" id="fDmm" autocomplete="off">
+      <h2>Double-multilayer monochromator</h2>
+      <p class="lede">Periodic [absorber / spacer] × N on a substrate, two identical mirrors.</p>
+      <fieldset><legend>Stack</legend>
+        <div class="f"><label for="mA">Absorber</label><input id="mA" list="matList" value="W"></div>
+        <div class="f"><label for="mAr">ρ <span class="u">g/cm³</span></label><input id="mAr" type="number" step="0.01" value="19.25"></div>
+        <div class="f"><label for="mB">Spacer</label><input id="mB" list="matList" value="B4C"></div>
+        <div class="f"><label for="mBr">ρ <span class="u">g/cm³</span></label><input id="mBr" type="number" step="0.01" value="2.52"></div>
+        <div class="f"><label for="mS">Substrate</label><input id="mS" list="matList" value="Si"></div>
+        <div class="f"><label for="mSr">ρ <span class="u">g/cm³</span></label><input id="mSr" type="number" step="0.01" value="2.33"></div>
+        <div class="f"><label for="mD">Period <i>d</i> <span class="u">nm</span></label><input id="mD" type="number" step="0.05" value="2.5"></div>
+        <div class="f"><label for="mG">Γ <span class="u">absorber / d</span></label><input id="mG" type="number" step="0.05" min="0.05" max="0.95" value="0.4"></div>
+        <div class="f"><label for="mN">Periods <i>N</i></label><input id="mN" type="number" step="1" min="1" value="100"></div>
+        <div class="f"><label for="mSig">Roughness σ <span class="u">nm</span></label><input id="mSig" type="number" step="0.05" min="0" value="0.3"></div>
+      </fieldset>
+      <fieldset><legend>Operation</legend>
+        <div class="f"><label for="mE">Energy <span class="u">keV</span></label><input id="mE" type="number" step="0.1" value="15"></div>
+        <div class="f"><label for="mM">Order <i>m</i></label><input id="mM" type="number" step="1" min="1" value="1"></div>
+        <div class="f"><label for="mOff">Beam offset <span class="u">mm</span></label><input id="mOff" type="number" step="0.5" value="10"></div>
+        <div class="f"><label for="mBeam">Beam height <span class="u">mm</span></label><input id="mBeam" type="number" step="0.1" value="1"></div>
+        <div class="f"><label for="mEmin">Scan from <span class="u">keV</span></label><input id="mEmin" type="number" step="0.5" value="8"></div>
+        <div class="f"><label for="mEmax">to <span class="u">keV</span></label><input id="mEmax" type="number" step="0.5" value="40"></div>
+      </fieldset>
+      <fieldset><legend>Imaging</legend>
+        <div class="f"><label for="mSrc">Source size FWHM <span class="u">µm</span></label><input id="mSrc" type="number" step="1" value="10"></div>
+        <div class="f"><label for="mL1">Source → optic <span class="u">m</span></label><input id="mL1" type="number" step="0.5" value="30"></div>
+        <div class="f"><label for="mL2">Mono → sample <span class="u">m</span></label><input id="mL2" type="number" step="0.5" value="25"></div>
+        <div class="f"><label for="mZ2">Sample → detector <span class="u">m</span></label><input id="mZ2" type="number" step="0.05" value="0.3"></div>
+      </fieldset>
+      <datalist id="matList"></datalist>
+    </form>
+    <div class="results" id="rDmm"></div>
+  </section>
+
+  <!-- ===================== Bent Laue ===================== -->
+  <section class="tab" id="p-bent-laue" role="tabpanel" aria-labelledby="t-laue" hidden>
+    <form class="params" id="fLaue" autocomplete="off">
+      <h2>Bent Laue crystal</h2>
+      <p class="lede">Cylindrically bent, asymmetric transmission crystal. Bandwidth, reflectivity and foci.</p>
+      <fieldset><legend>Reflection</legend>
+        <div class="f"><label for="lCr">Crystal</label><select id="lCr" class="crystal-select"></select></div>
+        <div class="f"><label>hkl</label><div class="hkl"><input id="lH" type="number" step="1" value="1" aria-label="h"><input id="lK" type="number" step="1" value="1" aria-label="k"><input id="lL" type="number" step="1" value="1" aria-label="l"></div></div>
+        <div class="f"><label for="lE">Energy <span class="u">keV</span></label><input id="lE" type="number" step="0.01" value="33.17"></div>
+        <div class="f"><label for="lPol">Polarization</label><select id="lPol"><option value="sigma">σ</option><option value="pi">π</option></select></div>
+        <div class="f"><label for="lB">Debye–Waller B <span class="u">Å²</span></label><input id="lB" type="number" step="0.01" class="b-input"></div>
+      </fieldset>
+      <fieldset><legend>Crystal</legend>
+        <div class="f"><label for="lChi">Asymmetry χ <span class="u">deg</span></label><input id="lChi" type="number" step="0.01" value="1.55"></div>
+        <div class="f"><label for="lT">Thickness <i>T</i> <span class="u">µm</span></label><input id="lT" type="number" step="10" value="600"></div>
+        <div class="f"><label for="lR">Bending radius <span class="u">m</span></label><input id="lR" type="number" step="0.1" min="0.01" value="5"></div>
+        <div class="f"><label for="lNu">Poisson ratio ν</label><input id="lNu" type="number" step="0.01" value="0.22"></div>
+        <div class="f full"><label for="lSide">Curvature</label><select id="lSide"><option value="1">Convex toward source (focusing)</option><option value="-1">Concave toward source</option></select></div>
+        <div class="f full"><button type="button" class="btn" id="lMagic">Set χ to the magic condition</button></div>
+      </fieldset>
+      <fieldset><legend>Source</legend>
+        <div class="f"><label for="lP">Source → crystal <span class="u">m</span></label><input id="lP" type="number" step="0.5" value="25" placeholder="∞ parallel"></div>
+        <div class="f"><label for="lBeam">Beam height <span class="u">mm</span></label><input id="lBeam" type="number" step="0.1" value="1"></div>
+      </fieldset>
+      <fieldset><legend>Imaging</legend>
+        <div class="f"><label for="lSrc">Source size FWHM <span class="u">µm</span></label><input id="lSrc" type="number" step="1" value="10"></div>
+        <div class="f"><label for="lL2">Crystal → sample <span class="u">m</span></label><input id="lL2" type="number" step="0.5" value="2"></div>
+        <div class="f"><label for="lZ2">Sample → detector <span class="u">m</span></label><input id="lZ2" type="number" step="0.05" value="0.3"></div>
+      </fieldset>
+    </form>
+    <div class="results" id="rLaue"></div>
+  </section>
+
+  <!-- ===================== Bent Bragg ===================== -->
+  <section class="tab" id="p-bent-bragg" role="tabpanel" aria-labelledby="t-bragg" hidden>
+    <form class="params" id="fBb" autocomplete="off">
+      <h2>Bent Bragg focusing</h2>
+      <p class="lede">Bending radii for meridional and sagittal focusing with a crystal in reflection.</p>
+      <fieldset><legend>Reflection</legend>
+        <div class="f"><label for="bCr">Crystal</label><select id="bCr" class="crystal-select"></select></div>
+        <div class="f"><label>hkl</label><div class="hkl"><input id="bH" type="number" step="1" value="1" aria-label="h"><input id="bK" type="number" step="1" value="1" aria-label="k"><input id="bL" type="number" step="1" value="1" aria-label="l"></div></div>
+        <div class="f"><label for="bE">Energy <span class="u">keV</span></label><input id="bE" type="number" step="0.1" value="12"></div>
+        <div class="f"><label for="bA">Asymmetry α <span class="u">deg</span></label><input id="bA" type="number" step="0.1" value="0"></div>
+      </fieldset>
+      <fieldset><legend>Distances</legend>
+        <div class="f"><label for="bP">Source → crystal <span class="u">m</span></label><input id="bP" type="number" step="0.5" value="30"></div>
+        <div class="f"><label for="bQ">Crystal → focus <span class="u">m</span></label><input id="bQ" type="number" step="0.5" value="10"></div>
+        <div class="f"><label for="bEmin">Scan from <span class="u">keV</span></label><input id="bEmin" type="number" step="0.5" value="5"></div>
+        <div class="f"><label for="bEmax">to <span class="u">keV</span></label><input id="bEmax" type="number" step="0.5" value="30"></div>
+      </fieldset>
+    </form>
+    <div class="results" id="rBb"></div>
+  </section>
+
+  <!-- ===================== Reflections ===================== -->
+  <section class="tab" id="p-reflections" role="tabpanel" aria-labelledby="t-refl" hidden>
+    <form class="params" id="fRt" autocomplete="off">
+      <h2>Reflection table</h2>
+      <p class="lede">All allowed reflections of a crystal at one energy, flat symmetric Bragg case.</p>
+      <fieldset><legend>Input</legend>
+        <div class="f"><label for="rCr">Crystal</label><select id="rCr" class="crystal-select"></select></div>
+        <div class="f"><label for="rE">Energy <span class="u">keV</span></label><input id="rE" type="number" step="0.1" value="12"></div>
+        <div class="f"><label for="rMax">Max h²+k²+l²</label><input id="rMax" type="number" step="1" value="64"></div>
+        <div class="f"><label for="rPol">Polarization</label><select id="rPol"><option value="sigma">σ</option><option value="pi">π</option></select></div>
+        <div class="f"><label for="rB">Debye–Waller B <span class="u">Å²</span></label><input id="rB" type="number" step="0.01" class="b-input"></div>
+      </fieldset>
+    </form>
+    <div class="results" id="rRt"></div>
+  </section>
+</main>
+
+<footer class="wrap">Scattering factors f₀, f′, f″ and attenuation from xraylib, tabulated 1–200 keV with absorption edges resolved. Perfect-crystal curves from the two-beam Takagi–Taupin equations solved exactly. Results are for design estimates; check critical numbers against XOP, X0h or xrt.</footer>
+
+<script src="data.js"></script>
+<script src="physics.js"></script>
+<script>
+(function () {
+'use strict';
+const XP = window.XP;
+const $ = id => document.getElementById(id);
+const DEG = Math.PI / 180;
+
+/* ---------------- formatting ---------------- */
+const SUP = { '-': '⁻', '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+function sci(v, d = 3) {
+  if (!isFinite(v)) return v > 0 ? '∞' : (v < 0 ? '−∞' : '—');
+  if (v === 0) return '0';
+  const e = Math.floor(Math.log10(Math.abs(v)));
+  const m = v / 10 ** e;
+  return m.toFixed(d - 1).replace('-', '−') + '×10' + String(e).split('').map(c => SUP[c]).join('');
+}
+function num(v, d = 4) {
+  if (v == null || Number.isNaN(v)) return '—';
+  if (!isFinite(v)) return v > 0 ? '∞' : '−∞';
+  const a = Math.abs(v);
+  if (a !== 0 && (a >= 1e6 || a < 1e-3)) return sci(v, d);
+  const digits = a === 0 ? 0 : Math.max(0, d - 1 - Math.floor(Math.log10(a)));
+  return v.toFixed(Math.min(digits, 6)).replace('-', '−');
+}
+const fx = (v, n) => (isFinite(v) ? v.toFixed(n).replace('-', '−') : '—');
+const urad = v => v * 1e6;
+const asec = v => v / DEG * 3600;
+function kv(rows) { return '<dl class="kv">' + rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('') + '</dl>'; }
+function kpis(items) { return '<div class="kpis">' + items.map(([k, v, s]) => `<div class="kpi"><div class="k">${k}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`).join('') + '</div>'; }
+function table(head, rows) { return '<div class="tbl"><table><thead><tr>' + head.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + r.map(c => `<td${c && c.cls ? ` class="${c.cls}"` : ''}>${c && c.v !== undefined ? c.v : c}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>'; }
+const errBox = m => `<div class="err">${m}</div>`;
+function readNum(id, def) { const el = $(id); if (!el) return def; const v = parseFloat(el.value); return Number.isFinite(v) ? v : def; }
+function readHKL(p) { return [p + 'H', p + 'K', p + 'L'].map(id => Math.round(readNum(id, 0))); }
+const hklStr = h => '(' + h.map(v => v < 0 ? `<span style="text-decoration:overline">${-v}</span>` : v).join('') + ')';
+
+/* ---------------- charts (inline SVG) ---------------- */
+function niceTicks(min, max, n) {
+  const span = max - min; if (!(span > 0)) return [min];
+  const raw = span / n, mag = 10 ** Math.floor(Math.log10(raw)), r = raw / mag;
+  const step = (r < 1.5 ? 1 : r < 3 ? 2 : r < 7 ? 5 : 10) * mag;
+  const out = []; for (let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step) out.push(+v.toPrecision(12));
+  return out;
+}
+function logTicks(min, max) {
+  const a = Math.floor(Math.log10(min)), b = Math.ceil(Math.log10(max)); const out = [];
+  const dense = b - a <= 2;
+  for (let e = a; e <= b; e++) for (const m of (dense ? [1, 2, 5] : [1])) { const v = m * 10 ** e; if (v >= min * 0.999 && v <= max * 1.001) out.push(v); }
+  return out;
+}
+function tickLabel(v, log) {
+  if (log) { const e = Math.round(Math.log10(v)); if (Math.abs(v - 10 ** e) < 1e-9 * 10 ** e) return (e >= -2 && e <= 3) ? String(+v.toPrecision(3)) : '10' + String(e).split('').map(c => SUP[c]).join(''); return String(+v.toPrecision(2)); }
+  const a = Math.abs(v); if (a !== 0 && (a >= 1e5 || a < 1e-3)) return sci(v, 2);
+  return String(+v.toPrecision(6)).replace('-', '−');
+}
+const charts = new Set();
+function drawChart(id, cfg) { const el = $(id); el._cfg = cfg; charts.add(el); renderChart(el); }
+function renderChart(el) {
+  const cfg = el._cfg; if (!cfg) return;
+  const W = Math.max(260, Math.round(el.clientWidth || 600)); el._w = W;
+  const H = cfg.height || 240;
+  const m = { l: 66, r: 14, t: 14, b: 40 };
+  const pw = W - m.l - m.r, ph = H - m.t - m.b;
+  const S = cfg.series.filter(s => s && s.x && s.x.length);
+  let xmin = cfg.xMin, xmax = cfg.xMax, ymin = cfg.yMin, ymax = cfg.yMax;
+  const okY = v => isFinite(v) && (!cfg.yLog || v > 0), okX = v => isFinite(v) && (!cfg.xLog || v > 0);
+  if (xmin == null || xmax == null) { let a = Infinity, b = -Infinity; S.forEach(s => s.x.forEach(v => { if (okX(v)) { a = Math.min(a, v); b = Math.max(b, v); } })); if (xmin == null) xmin = a; if (xmax == null) xmax = b; }
+  if (ymin == null || ymax == null) {
+    let a = Infinity, b = -Infinity; S.forEach(s => s.y.forEach((v, i) => { if (okY(v) && s.x[i] >= xmin && s.x[i] <= xmax) { a = Math.min(a, v); b = Math.max(b, v); } }));
+    if (cfg.yLog) { if (ymax == null) ymax = b * 1.6; if (ymin == null) ymin = Math.max(a, ymax / (cfg.yDecades ? 10 ** cfg.yDecades : 1e8)) / 1.3; }
+    else { const pad = (b - a) * 0.06 || Math.abs(b) * 0.1 || 1; if (ymax == null) ymax = b + pad; if (ymin == null) ymin = cfg.yZero && a >= 0 ? 0 : a - pad; }
+  }
+  if (!(xmax > xmin)) { xmax = xmin + 1; } if (!(ymax > ymin)) { ymax = ymin + 1; }
+  const tx = v => cfg.xLog ? Math.log10(v) : v, ty = v => cfg.yLog ? Math.log10(v) : v;
+  const sx = v => m.l + (tx(v) - tx(xmin)) / (tx(xmax) - tx(xmin)) * pw;
+  const sy = v => m.t + ph - (ty(v) - ty(ymin)) / (ty(ymax) - ty(ymin)) * ph;
+  const xt = cfg.xLog ? logTicks(xmin, xmax) : niceTicks(xmin, xmax, Math.max(3, Math.round(pw / 90)));
+  const yt = cfg.yLog ? logTicks(ymin, ymax) : niceTicks(ymin, ymax, Math.max(3, Math.round(ph / 45)));
+  let g = '';
+  yt.forEach(v => { const y = sy(v).toFixed(1); g += `<line x1="${m.l}" x2="${m.l + pw}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/><text x="${m.l - 6}" y="${(+y + 3.5).toFixed(1)}" text-anchor="end">${tickLabel(v, cfg.yLog)}</text>`; });
+  xt.forEach(v => { const x = sx(v).toFixed(1); g += `<line x1="${x}" x2="${x}" y1="${m.t + ph}" y2="${m.t + ph + 4}" stroke="var(--ink-3)" stroke-width="1"/><text x="${x}" y="${m.t + ph + 16}" text-anchor="middle">${tickLabel(v, cfg.xLog)}</text>`; });
+  g += `<line x1="${m.l}" x2="${m.l + pw}" y1="${m.t + ph}" y2="${m.t + ph}" stroke="var(--ink-3)" stroke-width="1"/>`;
+  g += `<text class="al" x="${m.l + pw / 2}" y="${H - 6}" text-anchor="middle">${cfg.xLabel || ''}</text>`;
+  g += `<text class="al" transform="translate(13 ${m.t + ph / 2}) rotate(-90)" text-anchor="middle">${cfg.yLabel || ''}</text>`;
+  (cfg.vlines || []).forEach(vl => { if (!(vl.x >= xmin && vl.x <= xmax)) return; const x = sx(vl.x).toFixed(1); g += `<line x1="${x}" x2="${x}" y1="${m.t}" y2="${m.t + ph}" stroke="var(--ink-3)" stroke-dasharray="3 3" stroke-width="1"/>${vl.label ? `<text x="${+x + 4}" y="${m.t + 9}" text-anchor="start">${vl.label}</text>` : ''}`; });
+  const clampY = v => Math.min(Math.max(v, ymin), ymax);
+  S.forEach(s => {
+    let d = '', pen = false;
+    for (let i = 0; i < s.x.length; i++) {
+      const X = s.x[i], Y = s.y[i];
+      if (!okX(X) || !okY(Y) || X < xmin || X > xmax) { pen = false; continue; }
+      if (Y > ymax * (cfg.yLog ? 1.0001 : 1) + (cfg.yLog ? 0 : 1e-12) || Y < ymin) {
+        // leave the plot at its edge, then lift the pen
+        if (pen) d += 'L' + sx(X).toFixed(1) + ' ' + sy(clampY(Y)).toFixed(1);
+        pen = false; continue;
+      }
+      if (!pen && i > 0 && okY(s.y[i - 1]) && okX(s.x[i - 1]) && s.x[i - 1] >= xmin) d += 'M' + sx(s.x[i - 1]).toFixed(1) + ' ' + sy(clampY(s.y[i - 1])).toFixed(1) + 'L';
+      else d += pen ? 'L' : 'M';
+      d += sx(X).toFixed(1) + ' ' + sy(Y).toFixed(1); pen = true;
+    }
+    g += `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width || 2}" stroke-linejoin="round" stroke-linecap="round"${s.dash ? ` stroke-dasharray="${s.dash}"` : ''}/>`;
+  });
+  g += `<g class="hov" visibility="hidden"><line class="hx" y1="${m.t}" y2="${m.t + ph}" stroke="var(--ink-3)" stroke-width="1"/>${S.map(s => `<circle r="3.5" fill="${s.color}" stroke="var(--panel)" stroke-width="2"/>`).join('')}</g>`;
+  g += `<rect x="${m.l}" y="${m.t}" width="${pw}" height="${ph}" fill="transparent" class="hit"/>`;
+  const legend = S.length > 1 ? '<div class="legend">' + S.map(s => `<span><svg width="18" height="8" aria-hidden="true"><line x1="1" x2="17" y1="4" y2="4" stroke="${s.color}" stroke-width="2"${s.dash ? ` stroke-dasharray="${s.dash}"` : ''}/></svg>${s.name}</span>`).join('') + '</div>' : '';
+  el.innerHTML = legend + `<div style="position:relative"><svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${(cfg.yLabel || '') + ' versus ' + (cfg.xLabel || '')}">${g}</svg><div class="tip" hidden></div></div>`;
+  const svg = el.querySelector('svg.plot'), hov = svg.querySelector('.hov'), tip = el.querySelector('.tip'), hx = svg.querySelector('.hx'), dots = hov.querySelectorAll('circle');
+  const fmtX = cfg.xFmt || (v => num(v, 4)), fmtY = cfg.yFmt || (v => num(v, 4));
+  function nearest(s, x) { let lo = 0, hi = s.x.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (s.x[mid] > x) hi = mid; else lo = mid; } return Math.abs(s.x[lo] - x) < Math.abs(s.x[hi] - x) ? lo : hi; }
+  function move(ev) {
+    const r = svg.getBoundingClientRect(); const scale = W / r.width;
+    const px = (ev.clientX - r.left) * scale;
+    if (px < m.l || px > m.l + pw) { hide(); return; }
+    const f = (px - m.l) / pw; const xv = cfg.xLog ? 10 ** (Math.log10(xmin) + f * (Math.log10(xmax) - Math.log10(xmin))) : xmin + f * (xmax - xmin);
+    let rows = '';
+    S.forEach((s, k) => { const i = nearest(s, xv); const Y = s.y[i]; const ok = okY(Y) && s.x[i] >= xmin && s.x[i] <= xmax; dots[k].setAttribute('visibility', ok ? 'visible' : 'hidden'); if (ok) { dots[k].setAttribute('cx', sx(s.x[i])); dots[k].setAttribute('cy', sy(clampY(Y))); } rows += `<div><i style="background:${s.color}"></i>${S.length > 1 ? s.name + ': ' : ''}${ok ? fmtY(Y) : '—'}</div>`; });
+    hx.setAttribute('x1', px); hx.setAttribute('x2', px); hov.setAttribute('visibility', 'visible');
+    tip.innerHTML = `<b>${cfg.xLabel ? cfg.xLabel.replace(/\s*\(.*\)$/, '') : 'x'} = ${fmtX(xv)}</b>` + rows; tip.hidden = false;
+    const tw = tip.offsetWidth, left = px / scale + 14 + tw > r.width ? px / scale - tw - 14 : px / scale + 14;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = (m.t / scale + 4) + 'px';
+  }
+  function hide() { hov.setAttribute('visibility', 'hidden'); tip.hidden = true; }
+  svg.addEventListener('pointermove', move); svg.addEventListener('pointerleave', hide);
+}
+const ro = new ResizeObserver(entries => { for (const e of entries) { const el = e.target; if (el._cfg && Math.abs((el.clientWidth || 0) - (el._w || 0)) > 4) renderChart(el); } });
+const observeCharts = root => root.querySelectorAll('.chart').forEach(c => ro.observe(c));
+
+/* ---------------- shared ---------------- */
+function erf(x) { const s = Math.sign(x); x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x); const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return s * y; }
+function defaultB(cr) { return XP.crystal(cr).B; }
+function readB(id, cr) { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : defaultB(cr); }
+const MATERIALS = [['W', 19.25], ['Mo', 10.22], ['Ru', 12.37], ['Rh', 12.41], ['Pd', 12.02], ['Pt', 21.45], ['Ir', 22.56], ['Au', 19.3], ['Ta', 16.65], ['Hf', 13.31], ['Ni', 8.9], ['Cr', 7.19], ['Fe', 7.874], ['Co', 8.9], ['Cu', 8.96], ['V', 6.11], ['Ti', 4.51], ['La', 6.15], ['Nb', 8.57], ['B4C', 2.52], ['C', 2.2], ['Si', 2.33], ['B', 2.34], ['SiC', 3.21], ['Al2O3', 3.95], ['SiO2', 2.2], ['Be', 1.85], ['Al', 2.7], ['Mg', 1.74], ['Y', 4.47], ['Sc', 2.99]];
+
+/* resolution rows shared by the tabs */
+const um = v => num(v * 1e6, 3) + ' µm';
+function imagingRows(b) {
+  return [
+    ['Angular source size seen from sample', `${num(b.aSrc * 1e6, 3)} µrad`],
+    ['Angular spread added by the optic', `${num(b.aOpt * 1e6, 3)} µrad`],
+    ['Blur at detector from source', um(b.bSrc)],
+    ['Blur at detector from optic', um(b.bOpt)],
+    ['Total penumbral blur at detector', `<b>${um(b.bTot)}</b>`],
+    ['Referred to the sample plane (÷ M = ' + fx(b.M, 4) + (b.M < 0 ? ', detector past the focus' : '') + ')', um(b.bTotSample)],
+  ];
+}
+function readImaging(px) { return { s: readNum(px + 'Src', 10) * 1e-6, L1: readNum(px + 'L1', 30), L2: readNum(px + 'L2', 25), z2: readNum(px + 'Z2', 0.3) }; }
+
+/* ================= DCM ================= */
+function runDCM() {
+  const out = $('rDcm');
+  try {
+    const cr = $('dCr').value, hkl = readHKL('d'), E = readNum('dE', 10), pol = $('dPol').value;
+    const a1 = readNum('dA1', 0) * DEG, a2 = readNum('dA2', 0) * DEG;
+    const tUm = parseFloat($('dT').value); const thick = Number.isFinite(tUm) && tUm > 0 ? tUm * 1e4 : Infinity;
+    const B = readB('dB', cr), div = readNum('dDiv', 0) * 1e-6, beam = readNum('dBeam', 1);
+    const mode = $('dMode').value, off = readNum('dOff', 25), Emin = readNum('dEmin', 5), Emax = readNum('dEmax', 30);
+    if (!(E > 0)) throw new Error('Enter a positive energy.');
+    const base = { crystal: cr, hkl, E, B, asym: a1, thickness: thick };
+    const rcS = XP.rockingCurve({ ...base, pol: 'sigma' }, 801);
+    const rcP = XP.rockingCurve({ ...base, pol: 'pi' }, 801);
+    const rc = pol === 'pi' ? rcP : rcS, sm = rc.sm, S = rc.S;
+    const fw = XP.fwhm(rc.x, rc.R);
+    if (fw.peak < 1e-6) throw new Error(`${hklStr(hkl)} is forbidden or extremely weak in ${XP.crystal(cr).label} (|F<sub>H</sub>| ≈ ${num(XP.C.abs(S.Fh), 2)}).`);
+    const th = sm.thB;
+    const an = XP.dcmAnalysis({ crystal: cr, hkl, E, B, pol, asym1: a1, asym2: a2, thickness: thick, nmax: 5 });
+    const f1 = an.harmonics[0];
+    const dEE = fw.fwhm / Math.tan(th);
+    const dEEtot = Math.sqrt(fw.fwhm ** 2 + div ** 2) / Math.tan(th);
+    const geo = XP.fixedExit(th, off);
+    const gapNow = mode === 'cc' ? off : geo.gap_mm;
+    const exitNow = mode === 'cc' ? 2 * off * Math.cos(th) : off;
+    const foot1 = beam / Math.sin(th - a1);
+    // detuning
+    const det = XP.detuneCurves(an, Math.max(3 * f1.fwhm, 2e-6), 161);
+    const fund = det.curves.find(c => c.n === 1);
+    let d50 = null; if (fund) { for (let i = 1; i < det.dets.length; i++) if (fund.y[i] < 0.5) { const t = (fund.y[i - 1] - 0.5) / (fund.y[i - 1] - fund.y[i]); d50 = det.dets[i - 1] + t * (det.dets[i] - det.dets[i - 1]); break; } }
+    const interpAt = (c, d) => { const xs = det.dets; for (let i = 1; i < xs.length; i++) if (xs[i] >= d) { const t = (d - xs[i - 1]) / (xs[i] - xs[i - 1]); return c.y[i - 1] + t * (c.y[i] - c.y[i - 1]); } return c.y[c.y.length - 1]; };
+    const h3 = det.curves.find(c => c.n > 1);
+    // spatial resolution
+    const im = readImaging('d');
+    const pen1 = XP.braggPenetration({ ...base, pol });
+    const pen2 = XP.braggPenetration({ crystal: cr, hkl, E, B, pol, asym: a2, thickness: thick });
+    const W1 = pen1.fwhmPerp * 1e-10, W2 = pen2.fwhmPerp * 1e-10;
+    const Weff = Math.hypot(W1 * pen2.magnif, W2);
+    const blur = XP.imagingBlur({ s: im.s, p: im.L1, fg: -im.L1 * pen1.magnif * pen2.magnif, fs: Infinity, W: Weff, L: im.L2, z2: im.z2 });
+    // energy scan table
+    const nE = 7, rows = [];
+    for (let i = 0; i < nE; i++) {
+      const e = Emin + (Emax - Emin) * i / (nE - 1);
+      const s = XP.lambdaOf(e) / (2 * S.d);
+      if (!(e > 0) || s >= 1) { rows.push([fx(e, 2), { v: 'below cut-off', cls: 'dim' }, '', '', '', '']); continue; }
+      const t = Math.asin(s), g = XP.fixedExit(t, off);
+      if (mode === 'cc') rows.push([fx(e, 2), fx(t / DEG, 4), fx(off, 2), fx(2 * off * Math.cos(t), 3), fx(off / Math.tan(t), 1), fx(beam / Math.sin(t - a1), 1)]);
+      else rows.push([fx(e, 2), fx(t / DEG, 4), fx(g.gap_mm, 3), fx(off, 2), fx(g.along_mm, 1), fx(beam / Math.sin(t - a1), 1)]);
+    }
+    const tE = (e) => { const s = XP.lambdaOf(e) / (2 * S.d); return s < 1 ? Math.asin(s) : NaN; };
+    const thLo = tE(Emax), thHi = tE(Emin);
+    let travel = '';
+    if (isFinite(thLo) && isFinite(thHi)) {
+      if (mode === 'cc') travel = `Exit height varies by ${fx(2 * off * (Math.cos(thLo) - Math.cos(thHi)), 3)} mm over ${fx(Emin, 1)}–${fx(Emax, 1)} keV.`;
+      else { const g1 = XP.fixedExit(thHi, off), g2 = XP.fixedExit(thLo, off); travel = `Gap travel ${fx(Math.abs(g2.gap_mm - g1.gap_mm), 3)} mm; beam spot moves ${fx(Math.abs(g2.along_mm - g1.along_mm), 1)} mm along crystal 2 over ${fx(Emin, 1)}–${fx(Emax, 1)} keV.`; }
+    } else travel = `Some of ${fx(Emin, 1)}–${fx(Emax, 1)} keV is below the ${hklStr(hkl)} cut-off of ${fx(XP.HC / (2 * S.d), 3)} keV.`;
+
+    const harmRows = an.harmonics.map(h => h.forbidden
+      ? [h.n === 1 ? 'Fundamental' : `${h.n}×`, hklStr(h.hkl), fx(h.E, 3), num(h.F, 3), { v: 'forbidden', cls: 'dim' }, '', '', '']
+      : [h.n === 1 ? 'Fundamental' : `${h.n}×`, hklStr(h.hkl), fx(h.E, 3), num(h.F, 3), fx(urad(h.fwhm), 2), fx(h.peak, 3), fx(urad(h.D2), 3), h.n === 1 ? '1' : sci(h.relFlat, 2)]);
+
+    out.innerHTML =
+      kpis([
+        ['Bragg angle', `${fx(th / DEG, 4)}<small>°</small>`, `${fx(th * 1e3, 3)} mrad`],
+        ['Intrinsic ΔE/E', sci(dEE, 3), `${pol === 'pi' ? 'π' : 'σ'} FWHM, one crystal`],
+        ['ΔE with divergence', `${num(dEEtot * E * 1e3, 3)}<small> eV</small>`, `ΔE/E ${sci(dEEtot, 3)}`],
+        ['Darwin FWHM', `${fx(urad(fw.fwhm), 2)}<small> µrad</small>`, `${fx(asec(fw.fwhm), 3)}″`],
+        ['Peak reflectivity', fx(fw.peak, 3), `two bounces ${fx(Math.pow(fw.peak, 2), 3)} (sym.)`],
+        [mode === 'cc' ? 'Exit offset' : 'Crystal gap', `${fx(mode === 'cc' ? exitNow : gapNow, 3)}<small> mm</small>`, mode === 'cc' ? `gap ${fx(off, 2)} mm` : `offset ${fx(off, 2)} mm`],
+      ]) +
+      `<div class="two">
+        <div class="card"><h3>Rocking curve, crystal 1</h3><p class="sub">Reflectivity against the glancing angle, measured from the kinematic Bragg angle ${fx(th / DEG, 4)}°. The centre sits ${fx(urad(sm.shift), 2)} µrad higher because of refraction.</p><div class="chart" id="cDcmRc"></div></div>
+        <div class="card"><h3>Harmonic rejection by detuning</h3><p class="sub">Throughput when crystal 2 is detuned from the peak, relative to the aligned fundamental, for a flat incident spectrum.${d50 != null && h3 ? ` At 50 % fundamental (${fx(urad(d50), 2)} µrad) the ${h3.n}× harmonic passes ${sci(interpAt(h3, d50), 2)}.` : ''}</p><div class="chart" id="cDcmDet"></div></div>
+      </div>
+      <div class="card"><h3>Crystal and beam parameters</h3><p class="sub">${XP.crystal(cr).label} ${hklStr(hkl)}, ${fx(E, 3)} keV, ${pol === 'pi' ? 'π' : 'σ'} polarization, B = ${fx(B, 3)} Å². ${isFinite(thick) ? `Thickness ${fx(thick * 1e-4, 1)} µm.` : 'Semi-infinite crystal.'}</p>${kv([
+        ['d-spacing', `${fx(S.d, 5)} Å`],
+        ['|F<sub>H</sub>| / F<sub>0</sub>', `${num(XP.C.abs(S.Fh), 4)} / ${num(S.F0[0], 4)}`],
+        ['χ<sub>0</sub>', `${sci(S.chi0[0], 4)} + i ${sci(S.chi0[1], 3)}`],
+        ['|χ<sub>H</sub>|', sci(XP.C.abs(S.chih), 4)],
+        ['Asymmetry factor b', fx(S.b, 4)],
+        ['Refraction shift', `${fx(urad(sm.shift), 2)} µrad`],
+        ['Darwin width (acceptance, total refl.)', `${fx(urad(sm.darwin), 2)} µrad`],
+        ['Emittance width (exit side)', `${fx(urad(sm.darwinOut), 2)} µrad`],
+        ['Integrated reflectivity', `${fx(urad(XP.trapz(rc.x, rc.R)), 3)} µrad`],
+        ['Two-bounce integrated (aligned)', `${fx(urad(f1.D2), 3)} µrad`],
+        ['Extinction length', `${num(sm.extinction * 1e-4, 4)} µm`],
+        ['Absorption length 1/µ', `${num(sm.absLen_um, 4)} µm`],
+        ['σ / π FWHM', `${fx(urad(XP.fwhm(rcS.x, rcS.R).fwhm), 2)} / ${fx(urad(XP.fwhm(rcP.x, rcP.R).fwhm), 2)} µrad`],
+        ['Beam footprint on crystal 1', `${fx(foot1, 2)} mm`],
+        ['Spot separation along crystal 2', mode === 'cc' ? `${fx(off / Math.tan(th), 2)} mm` : `${fx(geo.along_mm, 2)} mm`],
+        ['Crystal 2 position along beam', mode === 'cc' ? `${fx(exitNow / Math.tan(2 * th), 2)} mm` : `${fx(geo.longit_mm, 2)} mm`],
+      ])}</div>
+      <div class="card"><h3>Penetration and spatial resolution</h3><p class="sub">The wavefield reaches about one extinction length into the crystal, so the reflected beam leaves over a short stretch of surface. This works like a slightly larger source. The energy resolution follows from the number of lattice planes inside the extinction length: <span class="eq">ΔE/E ≈ 2d/(πΛ) = 2/(πN)</span>. The blur uses source ${fx(im.s * 1e6, 1)} µm, ${fx(im.L1, 1)} m to the mono, ${fx(im.L2, 1)} m to the sample and ${fx(im.z2, 2)} m to the detector.</p>${kv([
+        ['Extinction length Λ (amplitude 1/e)', `${num(pen1.sm.extinction * 1e-4, 4)} µm`],
+        ['Intensity depth at Darwin centre', `${num(pen1.zcentre * 1e-4, 4)} µm`],
+        ['Mean depth over the reflecting range', `${num(pen1.zbar * 1e-4, 4)} µm`],
+        ['Mean depth including the weak tails', `${num(pen1.zall * 1e-4, 4)} µm`],
+        ['Absorption depth (in and out)', `${num(pen1.zabs * 1e-4, 4)} µm`],
+        ['Lattice planes within Λ', num(pen1.nPlanes, 4)],
+        ['ΔE/E from Λ, 2/(πN)', sci(pen1.dEE_planes, 3)],
+        ['ΔE/E from the full curve', sci(dEE, 3)],
+        ['Spread along the surface (1/e), crystal 1', um(pen1.Lsurf * 1e-10)],
+        ['Spread ⊥ beam per bounce, FWHM / 90 %', `${num(pen1.fwhmPerp * 1e-4, 3)} / ${num(pen1.w90Perp * 1e-4, 3)} µm`],
+        ['Two-bounce spread ⊥ beam (FWHM)', um(Weff)],
+        ...imagingRows(blur),
+      ])}</div>
+      <div class="card"><h3>Harmonics passed by the same reflection</h3><p class="sub">Reflections n·${hklStr(hkl)} at n·E pass at the same angle. The last column is the harmonic photon flux relative to the fundamental for a flat spectrum (photons per eV); multiply by your source spectrum ratio S(nE)/S(E).</p>${table(['Order', 'hkl', 'E (keV)', '|F<sub>H</sub>|', 'FWHM (µrad)', 'Peak R', '∫R₁R₂ (µrad)', 'Rel. flux'], harmRows)}</div>
+      <div class="card"><h3>${mode === 'cc' ? 'Channel-cut over the energy range' : 'Fixed-exit geometry over the energy range'}</h3><p class="sub">${travel}</p>${table(['E (keV)', 'θ (°)', 'Gap (mm)', 'Exit offset (mm)', 'Spot sep. on 2nd (mm)', 'Footprint (mm)'], rows)}</div>
+      ${notesDCM()}`;
+    drawChart('cDcmRc', {
+      series: [
+        { name: 'σ', x: rcS.x.map(urad), y: rcS.R, color: 'var(--s1)' },
+        { name: 'π', x: rcP.x.map(urad), y: rcP.R, color: 'var(--s2)', dash: pol === 'pi' ? null : '5 3' },
+      ], xLabel: 'Δθ from kinematic Bragg angle (µrad)', yLabel: 'Reflectivity', yMin: 0, yMax: 1.02, xFmt: v => fx(v, 2) + ' µrad', yFmt: v => fx(v, 4),
+      vlines: [{ x: 0, label: 'θB' }],
+    });
+    const cols = ['var(--s1)', 'var(--s2)', 'var(--s3)', 'var(--s4)', 'var(--s5)'];
+    drawChart('cDcmDet', {
+      series: det.curves.map((c, k) => ({ name: c.n === 1 ? `Fundamental ${hklStr(c.hkl).replace(/<[^>]+>/g, '')}` : `${c.n}× ${hklStr(c.hkl).replace(/<[^>]+>/g, '')}`, x: det.dets.map(urad), y: c.y, color: cols[k % cols.length] })),
+      xLabel: 'Detuning of crystal 2 (µrad)', yLabel: 'Relative throughput', yLog: true, yMax: 2, yMin: 1e-7, xFmt: v => fx(v, 2) + ' µrad', yFmt: v => sci(v, 3),
+      vlines: d50 != null ? [{ x: urad(d50), label: '50 %' }] : [],
+    });
+    observeCharts(out);
+  } catch (e) { out.innerHTML = errBox(e.message); console.error(e); }
+}
+function notesDCM() {
+  return `<div class="card"><details class="notes"><summary>Model and assumptions</summary><ul>
+  <li>Reflectivity from the two-beam Takagi–Taupin equations for a perfect, unstrained crystal, solved exactly (Bragg case, finite or semi-infinite thickness). It reproduces Darwin–Prins curves with absorption, e.g. Si(111) at 8.048 keV: 7.39″ FWHM.</li>
+  <li>Structure factors use f₀(sinθ/λ) + f′ − i f″ with a Debye–Waller factor exp(−B s²). Im χ₀ uses the total attenuation, including Compton, so high-energy absorption is not underestimated. Quasi-forbidden reflections such as Si(222) come out as zero, because bonding charge is not modelled.</li>
+  <li>Asymmetry α &gt; 0 means grazing incidence: b = −sin(θ−α)/sin(θ+α), with larger acceptance and an expanded beam. Crystal 2 is evaluated at the same deviation as crystal 1 (+,− setting).</li>
+  <li>ΔE with divergence uses the DuMond estimate <span class="eq">ΔE/E = √(ω² + Δψ²)·cotθ</span>. Fixed exit: <span class="eq">gap = h / (2 cosθ)</span>, spot separation along crystal 2 = <span class="eq">h / (2 sinθ)</span>. Channel-cut: <span class="eq">h = 2 g cosθ</span>.</li>
+  <li>Penetration: the intensity of the decaying wavefield falls as exp(−z/z(θ)), where 1/(2z) is the real part of the TT eigenvalue. Its reflectivity-weighted mean over the FWHM sets a one-sided exponential beam spread of decay length <span class="eq">z(cotθ<sub>i</sub> + cotθ<sub>e</sub>)</span> along the surface, times sinθ<sub>e</sub> across the beam.</li>
+  <li>Imaging blur (ray optics): a ray displaced sideways is equivalent to a larger source. The angular spread at a sample point is <span class="eq">√(s² + W²)/(p' + L)</span>, with p' = p·(sinθ<sub>e</sub>/sinθ<sub>i</sub>) for each crystal, and the detector blur is z₂ times that. Crystal imperfections, vibrations and the detector's own resolution come on top.</li>
+  <li>Thermal deformation, heat load and crystal strain are not included.</li></ul></details></div>`;
+}
+
+/* ================= DMM ================= */
+function runDMM() {
+  const out = $('rDmm');
+  try {
+    const st = {
+      A: { formula: $('mA').value.trim(), rho: readNum('mAr', 0) }, B: { formula: $('mB').value.trim(), rho: readNum('mBr', 0) },
+      sub: { formula: $('mS').value.trim(), rho: readNum('mSr', 0) },
+      d: readNum('mD', 2.5) * 10, gamma: readNum('mG', 0.4), N: Math.max(1, Math.round(readNum('mN', 100))), sigma: readNum('mSig', 0) * 10,
+    };
+    const E = readNum('mE', 15), m = Math.max(1, Math.round(readNum('mM', 1))), off = readNum('mOff', 10), beam = readNum('mBeam', 1);
+    const Emin = readNum('mEmin', 8), Emax = readNum('mEmax', 40);
+    if (!(st.A.rho > 0 && st.B.rho > 0 && st.sub.rho > 0)) throw new Error('Enter a density for every material.');
+    if (!(st.gamma > 0 && st.gamma < 1)) throw new Error('Γ must be between 0 and 1.');
+    if (!(st.d > 0)) throw new Error('Enter a positive period.');
+    if (st.N > 2000) throw new Error('Use at most 2000 periods.');
+    const ml = XP.mlAnalysis(st, E, m);
+    const th = ml.theta;
+    const ec = ml.energyCurve;
+    const R2 = ec.R.map(v => v * v);
+    const f2 = XP.fwhm(ec.x, R2);
+    const geo = XP.fixedExit(th, off);
+    // wide spectrum at fixed angle
+    const Ehi = Math.min(199, E * 5.2), Elo = Math.max(1.0, E * 0.35);
+    const sp = XP.mlSpectrum(st, th, Elo, Ehi, 1600);
+    const orders = [];
+    for (let k = 1; k <= 5; k++) { const ek = E * k / m; if (ek > Elo && ek < Ehi && k !== m) orders.push(ek); }
+    const orderRows = [];
+    for (let k = 1; k <= 5; k++) {
+      const ek = E * k / m; if (ek < 1 || ek > 199) continue;
+      // local peak near ek in spectrum
+      let best = 0; let bi = -1;
+      for (let i = 0; i < sp.x.length; i++) if (Math.abs(sp.x[i] - ek) < ek * 0.06 && sp.R[i] > best) { best = sp.R[i]; bi = i; }
+      orderRows.push([k === m ? `${k} (selected)` : String(k), fx(bi >= 0 ? sp.x[bi] : ek, 2), bi >= 0 ? sci(best, 2) : '—', bi >= 0 ? sci(best * best, 2) : '—']);
+    }
+    // energy scan table (angle per energy, refraction-corrected)
+    const rows = [];
+    for (let i = 0; i < 7; i++) {
+      const e = Emin + (Emax - Emin) * i / 6;
+      try { const b = XP.mlBraggAngle(st, e, m); const g = XP.fixedExit(b.theta, off); rows.push([fx(e, 2), fx(b.theta * 1e3, 3), fx(b.theta / DEG, 4), fx(g.gap_mm, 3), fx(g.along_mm, 0), fx(beam / Math.sin(b.theta), 0)]); }
+      catch (e2) { rows.push([fx(e, 2), { v: 'unreachable', cls: 'dim' }, '', '', '', '']); }
+    }
+    const dA = st.d * st.gamma / 10, dB = st.d * (1 - st.gamma) / 10;
+    const im = readImaging('m');
+    const nEff = Math.min(st.N, 1 / (m * ml.dEE));
+    const zML = nEff * st.d;                                  // Angstrom
+    const LperpML = 2 * zML * Math.cos(th) * 1e-10, WML = Math.LN2 * LperpML;
+    const blurML = XP.imagingBlur({ s: im.s, p: im.L1, fg: -im.L1, fs: Infinity, W: Math.SQRT2 * WML, L: im.L2, z2: im.z2 });
+    out.innerHTML =
+      kpis([
+        ['Bragg angle', `${fx(th * 1e3, 3)}<small> mrad</small>`, `${fx(th / DEG, 4)}°, kinematic ${fx(ml.thetaKin * 1e3, 3)}`],
+        ['Peak reflectivity', fx(ml.peak, 3), `two bounces ${fx(ml.peak ** 2, 3)}`],
+        ['ΔE/E one mirror', `${fx(ml.dEE * 100, 3)}<small> %</small>`, `${num(ml.EFWHM * 1e3, 4)} eV FWHM`],
+        ['ΔE/E two mirrors', `${fx(f2.fwhm / f2.xpeak * 100, 3)}<small> %</small>`, `${num(f2.fwhm * 1e3, 4)} eV FWHM`],
+        ['Angular FWHM', `${num(urad(ml.angFWHM), 4)}<small> µrad</small>`, `at ${fx(E, 2)} keV`],
+        ['Mirror gap', `${fx(geo.gap_mm, 3)}<small> mm</small>`, `spot sep. ${fx(geo.along_mm, 0)} mm`],
+      ]) +
+      `<div class="two">
+        <div class="card"><h3>Bandpass at fixed angle</h3><p class="sub">Reflectivity against energy with both mirrors at ${fx(th * 1e3, 3)} mrad, the peak for ${fx(E, 2)} keV in order ${m}.</p><div class="chart" id="cDmmE"></div></div>
+        <div class="card"><h3>Full spectrum and higher orders</h3><p class="sub">The same angle over ${fx(Elo, 1)}–${fx(Ehi, 1)} keV on a log scale. Dashed lines mark n·E/m.</p><div class="chart" id="cDmmW"></div></div>
+      </div>
+      <div class="two">
+        <div class="card"><h3>Layer optics at ${fx(E, 2)} keV</h3><p class="sub">[${st.A.formula} ${fx(dA, 3)} nm / ${st.B.formula} ${fx(dB, 3)} nm] × ${st.N} on ${st.sub.formula}, σ = ${fx(st.sigma / 10, 2)} nm. Total thickness ${fx(st.d * st.N / 10, 1)} nm.</p>${kv([
+          [`δ ${st.A.formula}`, sci(ml.idx.oA.delta, 4)], [`β ${st.A.formula}`, sci(ml.idx.oA.beta, 3)],
+          [`δ ${st.B.formula}`, sci(ml.idx.oB.delta, 4)], [`β ${st.B.formula}`, sci(ml.idx.oB.beta, 3)],
+          ['Mean δ (refraction)', sci(ml.dbar, 4)],
+          ['Refraction angle offset', `${fx((ml.thetaRefr - ml.thetaKin) * 1e3, 4)} mrad`],
+          [`Critical angle ${st.A.formula}`, `${fx(ml.critA * 1e3, 3)} mrad`],
+          [`Critical angle ${st.B.formula}`, `${fx(ml.critB * 1e3, 3)} mrad`],
+          ['1/(mN) estimate', `${fx(100 / (m * st.N), 3)} %`],
+          ['Beam footprint', `${fx(beam / Math.sin(th), 0)} mm`],
+        ])}</div>
+        <div class="card"><h3>Orders at this angle</h3><p class="sub">Peak reflectivity near each n·E/m. Even orders are suppressed when Γ ≈ 0.5.</p>${table(['Order', 'E (keV)', 'R one', 'R two'], orderRows)}</div>
+      </div>
+      <div class="card"><h3>Penetration and spatial resolution</h3><p class="sub">About N<sub>eff</sub> ≈ 1/(m·ΔE/E) periods take part in the reflection. The beam spread at grazing incidence is long along the mirror but small across the beam.</p>${kv([
+        ['Periods taking part, N<sub>eff</sub>', `${num(nEff, 3)} of ${st.N}`],
+        ['Penetration depth', `${num(zML / 10, 4)} nm`],
+        ['Spread along the mirror', `${num(2 * zML / Math.tan(th) * 1e-7, 4)} mm`],
+        ['Spread ⊥ beam per mirror (FWHM)', um(WML)],
+        ...imagingRows(blurML),
+      ])}</div>
+      <div class="card"><h3>Fixed-exit geometry over the energy range</h3><p class="sub">Refraction-corrected angle for order ${m} at each energy, with a ${fx(off, 1)} mm beam offset.</p>${table(['E (keV)', 'θ (mrad)', 'θ (°)', 'Gap (mm)', 'Spot sep. on 2nd (mm)', 'Footprint (mm)'], rows)}</div>
+      ${notesDMM()}`;
+    drawChart('cDmmE', {
+      series: [{ name: 'One mirror', x: ec.x, y: ec.R, color: 'var(--s1)' }, { name: 'Two mirrors', x: ec.x, y: R2, color: 'var(--s2)' }],
+      xLabel: 'Energy (keV)', yLabel: 'Reflectivity', yMin: 0, yMax: Math.min(1.02, Math.max(...ec.R) * 1.12), xFmt: v => fx(v, 4) + ' keV', yFmt: v => fx(v, 4),
+    });
+    drawChart('cDmmW', {
+      series: [{ name: 'One mirror', x: sp.x, y: sp.R, color: 'var(--s1)' }, { name: 'Two mirrors', x: sp.x, y: sp.R.map(v => v * v), color: 'var(--s2)' }],
+      xLabel: 'Energy (keV)', yLabel: 'Reflectivity', yLog: true, yMax: 1.5, yMin: 1e-8, xFmt: v => fx(v, 3) + ' keV', yFmt: v => sci(v, 3),
+      vlines: orders.map(e => ({ x: e, label: '' })).concat([{ x: E, label: 'E' }]),
+    });
+    observeCharts(out);
+  } catch (e) { out.innerHTML = errBox(e.message); console.error(e); }
+}
+function notesDMM() {
+  return `<div class="card"><details class="notes"><summary>Model and assumptions</summary><ul>
+  <li>Parratt recursion over every layer, with Névot–Croce roughness <span class="eq">exp(−2 k<sub>z,j</sub> k<sub>z,j+1</sub> σ²)</span> applied at all interfaces. s-polarization; at these angles p differs negligibly.</li>
+  <li>The absorber sits on top: [A B] × N, then the substrate. δ and β come from f₁ = Z + f′ and f₂ = f″ at the density you enter. Thin-film densities are often 5–10 % below bulk.</li>
+  <li>Bragg angle with refraction: <span class="eq">sin²θ = (mλ/2d)² + 2δ̄</span>, then refined to the computed maximum. Angles are given for the selected order at each energy.</li>
+  <li>The second mirror is identical and parallel, so the two-mirror response is R². Layer-thickness drift, interdiffusion and thermal bump are not included.</li></ul></details></div>`;
+}
+
+/* ================= Bent Laue ================= */
+function laueInputs() {
+  const cr = $('lCr').value;
+  const pRaw = parseFloat($('lP').value);
+  return {
+    crystal: cr, hkl: readHKL('l'), E: readNum('lE', 33.17), B: readB('lB', cr), pol: $('lPol').value,
+    chi: readNum('lChi', 0) * DEG, T_um: readNum('lT', 600), R_m: Math.abs(readNum('lR', 5)) * parseFloat($('lSide').value),
+    nu: readNum('lNu', 0.22), p_m: Number.isFinite(pRaw) && pRaw > 0 ? pRaw : Infinity, beam_mm: readNum('lBeam', 1),
+  };
+}
+function runLaue() {
+  const out = $('rLaue');
+  try {
+    const o = laueInputs();
+    if (!(o.T_um > 0)) throw new Error('Enter a positive thickness.');
+    if (!(Math.abs(o.R_m) > 0)) throw new Error('Enter a bending radius.');
+    const bl = XP.bentLaue(o), th = bl.thB;
+    if (XP.C.abs(bl.S.Fh) < 1e-3) throw new Error(`${hklStr(o.hkl)} is forbidden in ${XP.crystal(o.crystal).label}.`);
+    const magic = XP.magicChi(o);
+    const fmtF = f => !isFinite(f) ? '∞' : `${fx(Math.abs(f), 3)} m ${f >= 0 ? 'real' : 'virtual'}`;
+    // bandwidth and reflectivity versus bending radius
+    const Rs = []; for (let i = 0; i <= 80; i++) Rs.push(0.2 * Math.pow(10, i * Math.log10(500) / 80));
+    const sweep = Rs.map(R => XP.bentLaue({ ...o, R_m: R * Math.sign(o.R_m) }));
+    // focusing power versus chi
+    const chis = [], pg = [], ps = [];
+    const chiMax = Math.min(60, 90 - th / DEG - 2);
+    for (let i = 0; i <= 240; i++) {
+      const c = (-chiMax + 2 * chiMax * i / 240) * DEG; chis.push(c / DEG);
+      const pin = th + c, pout = th - c, rot = Math.tan(pin) + (1 + o.nu) * Math.sin(c) * Math.cos(c);
+      const fg = Math.cos(pout) / (2 / o.R_m + (isFinite(o.p_m) ? Math.cos(pin) / o.p_m : 0));
+      const fs = o.R_m * Math.sin(2 * th) / (2 * Math.cos(pin) * rot);
+      pg.push(1 / fg); ps.push(1 / fs);
+    }
+    // rocking curves: flat crystal (TT) vs bent (lamellar)
+    const S = bl.S, cen = bl.sm.shift;
+    const half = bl.dthIn / 2 + 6 * bl.omegaD;
+    const nF = 4000, xs = XP.linspace(cen - half, cen + half, nF);
+    const flatRaw = xs.map(x => XP.ttPoint(S, th + x, o.E).R);
+    const grp = 10, xf = [], yf = [];
+    for (let i = 0; i + grp <= nF; i += grp) { let a = 0, b = 0; for (let j = 0; j < grp; j++) { a += xs[i + j]; b += flatRaw[i + j]; } xf.push(a / grp); yf.push(b / grp); }
+    const sg = bl.omegaD / 2.3548, aW = bl.dthIn;
+    const shape = xf.map(x => 0.5 * (erf((x - cen + aW / 2) / (sg * Math.SQRT2)) - erf((x - cen - aW / 2) / (sg * Math.SQRT2))));
+    const shInt = XP.trapz(xf, shape);
+    const yb = shape.map(v => v * bl.Rint / (shInt || 1));
+    const flatInt = XP.trapz(xf, yf);
+    const im = readImaging('l');
+    const Tm = o.T_um * 1e-6;
+    const fanSurf = Tm * (Math.tan(bl.psiIn) + Math.tan(bl.psiOut));     // Borrmann fan base along exit surface
+    const fanPerp = fanSurf * Math.cos(bl.psiOut);                         // ... perpendicular to the diffracted beam
+    const bundleAtSample = fanPerp * Math.abs(1 - im.L2 / bl.fs_m);
+    const blurL = XP.imagingBlur({ s: im.s, p: o.p_m, fg: bl.fg_m, fs: bl.fs_m, W: fanPerp, L: im.L2, z2: im.z2 });
+    out.innerHTML =
+      kpis([
+        ['Bragg angle', `${fx(th / DEG, 4)}<small>°</small>`, `ψ<sub>in</sub> ${fx(bl.psiIn / DEG, 3)}°, ψ<sub>out</sub> ${fx(bl.psiOut / DEG, 3)}°`],
+        ['ΔE/E single ray', sci(bl.dEE_ray, 3), `${num(bl.dEE_ray * o.E * 1e3, 3)} eV`],
+        ['ΔE/E whole beam', sci(bl.dEE_beam, 3), `${fx(o.beam_mm, 2)} mm beam, ${isFinite(o.p_m) ? fx(o.p_m, 1) + ' m source' : 'parallel'}`],
+        ['Peak reflectivity', fx(bl.Rpeak, 3), `lamellar, absorption ${fx(bl.absorb, 3)}`],
+        ['Geometric focus', isFinite(bl.fg_m) ? `${fx(Math.abs(bl.fg_m), 3)}<small> m</small>` : '∞', `${bl.fg_m >= 0 ? 'real' : 'virtual'} · single-ray ${fmtF(bl.fs_m)}`],
+        ['Magic χ', magic == null ? '—' : `${fx(magic / DEG, 3)}<small>°</small>`, magic == null ? 'no solution for these settings' : (Math.abs(magic - o.chi) < 2e-4 ? 'matched' : `now ${fx(o.chi / DEG, 3)}°`)],
+      ]) +
+      `<div class="two">
+        <div class="card"><h3>Bandwidth against bending radius</h3><p class="sub">ΔE/E for one incident ray, for the whole beam, and for the flat crystal. The marker shows R = ${fx(Math.abs(o.R_m), 2)} m.</p><div class="chart" id="cLaueBW"></div></div>
+        <div class="card"><h3>Peak reflectivity against bending radius</h3><p class="sub">Lamellar model, ${fx(o.T_um, 0)} µm ${XP.crystal(o.crystal).label} ${hklStr(o.hkl).replace(/<[^>]+>/g, '')}. Bending spreads the reflection, so the peak falls as the band widens.</p><div class="chart" id="cLaueR"></div></div>
+      </div>
+      <div class="two">
+        <div class="card"><h3>Rocking curve, flat against bent</h3><p class="sub">Flat crystal from Takagi–Taupin at this thickness (Pendellösung fringes averaged), against the bent-crystal lamellar estimate with the same integrated area as the model. Integrated: flat ${fx(urad(flatInt), 2)} µrad, bent ${fx(urad(bl.Rint), 2)} µrad.</p><div class="chart" id="cLaueRC"></div></div>
+        <div class="card"><h3>Focusing power against asymmetry</h3><p class="sub">1/f for the geometric focus and the single-ray focus. Where the lines cross, the two foci coincide: the magic condition. Positive means a real focus.</p><div class="chart" id="cLaueF"></div></div>
+      </div>
+      <div class="card"><h3>Borrmann fan and spatial resolution</h3><p class="sub">Each incident ray spreads over the Borrmann fan between the incident and diffracted directions. A flat crystal sends these rays out parallel. A bent crystal sends them toward the single-ray focus. The crystal adds no angular blur when the single-ray and geometric foci coincide, which is the magic condition. Sample at ${fx(im.L2, 2)} m, detector ${fx(im.z2, 2)} m further, source ${fx(im.s * 1e6, 1)} µm.</p>${kv([
+        ['Pendellösung length Λ<sub>0</sub>', `${num(bl.sm.pendellosung * 1e-4, 4)} µm`],
+        ['Extinction length Λ<sub>0</sub>/π', `${num(bl.sm.pendellosung * 1e-4 / Math.PI, 4)} µm`],
+        ['Thickness / Λ<sub>0</sub>', num(o.T_um / (bl.sm.pendellosung * 1e-4), 3)],
+        ['Borrmann fan full angle', `${fx(2 * th / DEG, 3)}°`],
+        ['Fan base along exit surface', um(fanSurf)],
+        ['Fan width ⊥ diffracted beam', um(fanPerp)],
+        ['One ray’s bundle width at the sample', um(bundleAtSample)],
+        ['Geometric / single-ray focus', `${fmtF(bl.fg_m)} / ${fmtF(bl.fs_m)}`],
+        ...imagingRows(blurL),
+      ])}</div>
+      <div class="card"><h3>Breakdown</h3><p class="sub">${bl.lamellarValid ? '<span class="pill ok">Bending dominates</span> The lamellar model applies.' : '<span class="pill warn">Weak bending</span> The bending spread is under twice the Darwin width, so the lamellar numbers are rough. The flat-crystal curve is the better guide.'}</p>${kv([
+        ['d-spacing', `${fx(S.d, 5)} Å`],
+        ['|F<sub>H</sub>|', num(XP.C.abs(S.Fh), 4)],
+        ['Flat-crystal Darwin width', `${fx(urad(bl.omegaD), 3)} µrad`],
+        ['Flat-crystal ΔE/E', sci(bl.omegaD / Math.tan(th), 3)],
+        ['Pendellösung length', `${num(bl.sm.pendellosung * 1e-4, 4)} µm`],
+        ['Absorption length 1/µ', `${num(bl.sm.absLen_um, 4)} µm`],
+        ['Angular spread along incident ray', `${fx(urad(bl.dthIn), 3)} µrad`],
+        ['Angular spread along exit ray', `${fx(urad(bl.dthOut), 3)} µrad`],
+        ['ΔE/E at one exit point', sci(bl.dEE_exit, 3)],
+        ['ΔE/E from d-spacing gradient', sci(bl.dEE_dsp, 3)],
+        ['Footprint (polychromatic) spread', `${fx(urad(bl.dthFoot), 3)} µrad`],
+        ['Integrated reflectivity', `${fx(urad(bl.Rint), 3)} µrad`],
+        ['Rowland (monochromatic) source distance', bl.rowland_m > 0 ? `${fx(bl.rowland_m, 3)} m` : 'needs concave side to source'],
+        ['Asymmetry factor b', fx(S.b, 4)],
+      ])}</div>
+      ${notesLaue()}`;
+    drawChart('cLaueBW', {
+      series: [
+        { name: 'Single ray', x: Rs, y: sweep.map(s => s.dEE_ray), color: 'var(--s1)' },
+        { name: 'Whole beam', x: Rs, y: sweep.map(s => s.dEE_beam), color: 'var(--s2)' },
+        { name: 'Flat crystal', x: Rs, y: sweep.map(s => s.omegaD / Math.tan(th)), color: 'var(--ink-3)', dash: '4 3', width: 1.5 },
+      ], xLog: true, yLog: true, xLabel: 'Bending radius (m)', yLabel: 'ΔE/E', xFmt: v => fx(v, 2) + ' m', yFmt: v => sci(v, 3),
+      vlines: [{ x: Math.abs(o.R_m), label: 'R' }],
+    });
+    drawChart('cLaueR', {
+      series: [{ name: 'Peak reflectivity', x: Rs, y: sweep.map(s => s.Rpeak), color: 'var(--s1)' }],
+      xLog: true, xLabel: 'Bending radius (m)', yLabel: 'Peak reflectivity', yMin: 0, xFmt: v => fx(v, 2) + ' m', yFmt: v => fx(v, 4),
+      vlines: [{ x: Math.abs(o.R_m), label: 'R' }],
+    });
+    drawChart('cLaueRC', {
+      series: [{ name: 'Flat crystal', x: xf.map(urad), y: yf, color: 'var(--s1)' }, { name: 'Bent (lamellar)', x: xf.map(urad), y: yb, color: 'var(--s2)' }],
+      xLabel: 'Δθ from kinematic Bragg angle (µrad)', yLabel: 'Reflectivity', yMin: 0, xFmt: v => fx(v, 2) + ' µrad', yFmt: v => fx(v, 4),
+    });
+    const lim = 6 / Math.abs(o.R_m) + (isFinite(o.p_m) ? 2 / o.p_m : 0);
+    drawChart('cLaueF', {
+      series: [{ name: 'Geometric 1/f', x: chis, y: pg, color: 'var(--s1)' }, { name: 'Single-ray 1/f', x: chis, y: ps, color: 'var(--s2)' }],
+      xLabel: 'Asymmetry χ (deg)', yLabel: 'Focusing power 1/f (1/m)', yMin: -lim, yMax: lim, xFmt: v => fx(v, 2) + '°', yFmt: v => fx(v, 4) + ' m⁻¹',
+      vlines: [{ x: o.chi / DEG, label: 'χ' }].concat(magic != null && Math.abs(magic - o.chi) > 0.3 * DEG ? [{ x: magic / DEG, label: 'magic' }] : []),
+    });
+    observeCharts(out);
+  } catch (e) { out.innerHTML = errBox(e.message); console.error(e); }
+}
+function notesLaue() {
+  return `<div class="card"><details class="notes"><summary>Model and assumptions</summary><ul>
+  <li>Sign convention: χ is the angle between the lattice planes and the surface normal. The incident beam travels at ψ<sub>in</sub> = θ<sub>B</sub> + χ and the diffracted beam at ψ<sub>out</sub> = θ<sub>B</sub> − χ to the normal (the convention of Qi, Shi, Samadi &amp; Chapman, SPIE 11108, 2019).</li>
+  <li>For isotropic cylindrical bending, a ray crossing thickness T samples a Bragg deviation <span class="eq">Δθ = (T/R)·|tan ψ + (1+ν) sinχ cosχ·s + (cos²χ − ν sin²χ) tanθ<sub>B</sub>|</span>. The first two terms are lattice rotation (s = +1 along the incident ray, −1 along the diffracted ray, where tan ψ<sub>out</sub> appears). The last is the d-spacing gradient. At the magic condition the rotation terms cancel along the exit ray, leaving <span class="eq">ΔE/E = (T/R)(cos²χ − ν sin²χ)</span> (Qi et al. eq. 12).</li>
+  <li>Foci (R &gt; 0 convex toward the source): geometric <span class="eq">cos ψ<sub>out</sub>/f<sub>g</sub> = 2/R + cos ψ<sub>in</sub>/p</span>; single-ray <span class="eq">f<sub>s</sub> = R sin2θ / [2 cos ψ<sub>in</sub> (tan ψ<sub>in</sub> + (1+ν) sinχ cosχ)]</span>. Setting f<sub>g</sub> = f<sub>s</sub> with p = ∞ gives exactly Qi et al. eq. 9, which reduces to tan χ ≈ tan θ<sub>B</sub>/(2+ν).</li>
+  <li>Reflectivity uses the lamellar (mosaic-like) model: <span class="eq">R = ½[1 − exp(−2 Q L / Δθ)]·exp(−µT(1/γ₀+1/γ<sub>h</sub>)/2)</span>, with the kinematic Q, path length L = T/γ₀ and Δθ = bending spread + Darwin width. It is reliable when bending dominates, and it ignores the Borrmann effect.</li>
+  <li>Spatial resolution: one incident ray leaves the crystal spread over the Borrmann fan, width <span class="eq">W = T(tan ψ<sub>in</sub> + tan ψ<sub>out</sub>) cos ψ<sub>out</sub></span> across the beam, converging toward f<sub>s</sub>. Rays through one sample point at distance L then span <span class="eq">Δα = W·|1/f<sub>g</sub> − 1/f<sub>s</sub>| / |1 − L/f<sub>g</sub>|</span>, and the source adds <span class="eq">s / (p |1 − L/f<sub>g</sub>|)</span>. Detector blur = z₂·Δα. For thick, absorbing, unbent crystals the Borrmann effect concentrates intensity near the fan centre, so the full fan overestimates the blur.</li>
+  <li>The whole-beam bandwidth adds the change of glancing angle across the footprint, <span class="eq">L<sub>fp</sub>·|1/R + cos ψ<sub>in</sub>/p|</span>, which vanishes on the Rowland condition (concave side to the source). Poisson's ratio for Si depends on orientation (about 0.06–0.36), so use the value for your cut and bending axis. Anisotropic elasticity and anticlastic bending are not included.</li></ul></details></div>`;
+}
+
+/* ================= Bent Bragg ================= */
+function runBB() {
+  const out = $('rBb');
+  try {
+    const cr = $('bCr').value, hkl = readHKL('b'), E = readNum('bE', 12), a = readNum('bA', 0) * DEG;
+    const p = readNum('bP', 30), q = readNum('bQ', 10), Emin = readNum('bEmin', 5), Emax = readNum('bEmax', 30);
+    if (!(p > 0 && q > 0)) throw new Error('Enter positive source and focus distances.');
+    const d = XP.dSpacing(cr, ...hkl);
+    const thOf = e => { const s = XP.lambdaOf(e) / (2 * d); return s < 1 ? Math.asin(s) : NaN; };
+    const th = thOf(E);
+    if (!isFinite(th)) throw new Error(`${hklStr(hkl)} needs at least ${fx(XP.HC / (2 * d), 3)} keV.`);
+    if (Math.abs(a) >= th) throw new Error(`|α| must be below θB = ${fx(th / DEG, 3)}°.`);
+    const f = XP.braggFocusing(th, a, p, q);
+    const rc = XP.rockingCurve({ crystal: cr, hkl, E, B: defaultB(cr), pol: 'sigma', asym: a }, 601);
+    const fw = XP.fwhm(rc.x, rc.R);
+    const es = [], rm = [], rs = [];
+    for (let i = 0; i <= 160; i++) { const e = Emin + (Emax - Emin) * i / 160; const t = thOf(e); es.push(e); if (isFinite(t) && Math.abs(a) < t) { const g = XP.braggFocusing(t, a, p, q); rm.push(g.Rm); rs.push(g.Rs); } else { rm.push(NaN); rs.push(NaN); } }
+    const rows = [];
+    for (let i = 0; i < 7; i++) { const e = Emin + (Emax - Emin) * i / 6; const t = thOf(e); if (!isFinite(t) || Math.abs(a) >= t) { rows.push([fx(e, 2), { v: 'unreachable', cls: 'dim' }, '', '']); continue; } const g = XP.braggFocusing(t, a, p, q); rows.push([fx(e, 2), fx(t / DEG, 4), fx(g.Rm, 2), fx(g.Rs * 1e3, 2)]); }
+    out.innerHTML =
+      kpis([
+        ['Bragg angle', `${fx(th / DEG, 4)}<small>°</small>`, `${fx(th * 1e3, 3)} mrad`],
+        ['Meridional radius', `${num(f.Rm, 4)}<small> m</small>`, 'bend in the diffraction plane'],
+        ['Sagittal radius', `${num(f.Rs * 1e3, 4)}<small> mm</small>`, 'bend across the diffraction plane'],
+        ['Magnification', fx(f.mag, 3), `q/p, source image ${fx(f.mag, 3)}×`],
+        ['Darwin FWHM', `${fx(urad(fw.fwhm), 2)}<small> µrad</small>`, `ΔE/E ${sci(fw.fwhm / Math.tan(th), 3)}`],
+        ['Beam size ratio', fx(f.beamFactor, 3), 'exit / entrance width'],
+      ]) +
+      `<div class="card"><h3>Bending radii over the energy range</h3><p class="sub">Meridional and sagittal radii that image the source at ${fx(p, 1)} m onto ${fx(q, 1)} m, for ${XP.crystal(cr).label} ${hklStr(hkl).replace(/<[^>]+>/g, '')}${a ? `, α = ${fx(a / DEG, 2)}°` : ''}. Log scale, both in metres.</p><div class="chart" id="cBb"></div></div>
+      <div class="two">
+        <div class="card"><h3>Radii at selected energies</h3>${table(['E (keV)', 'θ (°)', 'R<sub>m</sub> (m)', 'R<sub>s</sub> (mm)'], rows)}</div>
+        <div class="card"><h3>Geometry at ${fx(E, 2)} keV</h3>${kv([
+          ['Incidence angle to surface', `${fx((th - a) / DEG, 4)}°`],
+          ['Exit angle to surface', `${fx((th + a) / DEG, 4)}°`],
+          ['Footprint per mm of beam', `${fx(f.footprintFactor, 3)} mm`],
+          ['Meridional lens equation', '<span class="eq">sin θ<sub>i</sub>/p + sin θ<sub>e</sub>/q = 2/R<sub>m</sub></span>'],
+          ['Sagittal lens equation', '<span class="eq">1/p + 1/q = (sin θ<sub>i</sub> + sin θ<sub>e</sub>)/R<sub>s</sub></span>'],
+          ['Sagittal radius (Rowland, p = q)', `${num(XP.braggFocusing(th, a, p, p).Rs * 1e3, 4)} mm`],
+        ])}</div>
+      </div>
+      <div class="card"><details class="notes"><summary>Model and assumptions</summary><ul>
+      <li>Thin-lens focusing equations for a cylindrically bent crystal. θ<sub>i</sub> = θ<sub>B</sub> − α and θ<sub>e</sub> = θ<sub>B</sub> + α; α &gt; 0 means grazing incidence.</li>
+      <li>Sagittal bending causes anticlastic curvature and, for asymmetric cuts, extra lattice distortion. Ribbed crystals or a sagittal-to-meridional radius ratio of about 1/ν for anticlastic cancellation are common fixes and are not modelled here.</li>
+      <li>The Darwin width shown is for the flat crystal at this asymmetry (σ). Bending adds a depth gradient that matters only for small radii or thick penetration.</li></ul></details></div>`;
+    drawChart('cBb', {
+      series: [{ name: 'Meridional R<sub>m</sub>', x: es, y: rm, color: 'var(--s1)' }, { name: 'Sagittal R<sub>s</sub>', x: es, y: rs, color: 'var(--s2)' }],
+      yLog: true, xLabel: 'Energy (keV)', yLabel: 'Bending radius (m)', xFmt: v => fx(v, 2) + ' keV', yFmt: v => num(v, 4) + ' m', vlines: [{ x: E, label: 'E' }],
+    });
+    observeCharts(out);
+  } catch (e) { out.innerHTML = errBox(e.message); console.error(e); }
+}
+
+/* ================= Reflection table ================= */
+function runRT() {
+  const out = $('rRt');
+  try {
+    const cr = $('rCr').value, E = readNum('rE', 12), maxN = Math.min(200, Math.max(3, Math.round(readNum('rMax', 64)))), pol = $('rPol').value, B = readB('rB', cr);
+    const lam = XP.lambdaOf(E), list = [];
+    for (let h = 0; h * h <= maxN; h++) for (let k = 0; k <= h; k++) for (let l = 0; l <= k; l++) {
+      const N = h * h + k * k + l * l; if (!N || N > maxN) continue;
+      const d = XP.dSpacing(cr, h, k, l); if (lam / (2 * d) >= 0.999) continue;
+      const F = XP.C.abs(XP.structureFactor(cr, h, k, l, E, B)); if (F < 0.05) continue;
+      list.push({ hkl: [h, k, l], N, d, F });
+    }
+    list.sort((a, b) => a.N - b.N);
+    const rows = list.map(r => {
+      const rc = XP.rockingCurve({ crystal: cr, hkl: r.hkl, E, B, pol }, 401);
+      const fw = XP.fwhm(rc.x, rc.R), t = rc.sm.thB, dEE = fw.fwhm / Math.tan(t);
+      return [hklStr(r.hkl), fx(r.d, 4), fx(t / DEG, 3), num(r.F, 3), fx(urad(fw.fwhm), 2), fx(asec(fw.fwhm), 3), sci(dEE, 3), num(dEE * E * 1e3, 3), fx(fw.peak, 3), num(rc.sm.extinction * 1e-4, 3)];
+    });
+    out.innerHTML =
+      `<div class="card"><h3>${XP.crystal(cr).label} at ${fx(E, 3)} keV</h3><p class="sub">${list.length} allowed reflections with h²+k²+l² ≤ ${maxN} and θ<sub>B</sub> below 87°. ${pol === 'pi' ? 'π' : 'σ'} polarization, B = ${fx(B, 3)} Å², symmetric Bragg, thick crystal. λ = ${fx(lam, 5)} Å.</p>${rows.length ? table(['hkl', 'd (Å)', 'θ<sub>B</sub> (°)', '|F<sub>H</sub>|', 'FWHM (µrad)', 'FWHM (″)', 'ΔE/E', 'ΔE (eV)', 'Peak R', 'Extinction (µm)'], rows) : '<p>No reflection is reachable. Raise the energy.</p>'}</div>`;
+  } catch (e) { out.innerHTML = errBox(e.message); console.error(e); }
+}
+
+/* ---------------- theme ---------------- */
+function applyTheme(t) {
+  if (t === 'light') document.documentElement.setAttribute('data-theme', 'light'); else document.documentElement.setAttribute('data-theme', 'dark');
+  $('themeBtn').textContent = t === 'light' ? 'Dark' : 'Light';
+  $('themeBtn').setAttribute('aria-label', t === 'light' ? 'Switch to dark theme' : 'Switch to light theme');
+}
+let theme = 'dark'; try { theme = localStorage.getItem('mw-theme') || 'dark'; } catch (e) {}
+applyTheme(theme);
+$('themeBtn').addEventListener('click', () => { theme = theme === 'light' ? 'dark' : 'light'; applyTheme(theme); try { localStorage.setItem('mw-theme', theme); } catch (e) {} });
+
+/* ---------------- wiring ---------------- */
+const RUN = { dcm: runDCM, dmm: runDMM, 'bent-laue': runLaue, 'bent-bragg': runBB, reflections: runRT };
+const FORMS = { dcm: 'fDcm', dmm: 'fDmm', 'bent-laue': 'fLaue', 'bent-bragg': 'fBb', reflections: 'fRt' };
+let ready = false, current = 'dcm';
+const dirty = new Set(Object.keys(RUN));
+function show(tab) {
+  if (!RUN[tab]) tab = 'dcm';
+  current = tab;
+  document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+  document.querySelectorAll('section.tab').forEach(s => { s.hidden = s.id !== 'p-' + tab; });
+  if (ready && dirty.has(tab)) { dirty.delete(tab); RUN[tab](); }
+  else if (ready) charts.forEach(el => { if (el.isConnected && el.offsetParent) renderChart(el); });
+}
+document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => { if (location.hash !== '#' + b.dataset.tab) location.hash = b.dataset.tab; else show(b.dataset.tab); }));
+window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+const timers = {};
+Object.entries(FORMS).forEach(([tab, fid]) => {
+  const f = $(fid);
+  f.addEventListener('submit', e => e.preventDefault());
+  const trig = () => { clearTimeout(timers[tab]); timers[tab] = setTimeout(() => { if (!ready) return; if (current === tab) RUN[tab](); else dirty.add(tab); }, 180); };
+  f.addEventListener('input', trig); f.addEventListener('change', trig);
+});
+$('dMode').addEventListener('change', () => { const cc = $('dMode').value === 'cc'; $('dOffLbl').innerHTML = cc ? 'Crystal gap <span class="u">mm</span>' : 'Beam offset <span class="u">mm</span>'; $('dOff').value = cc ? '5' : '25'; });
+$('lMagic').addEventListener('click', () => {
+  if (!ready) return;
+  try { const chi = XP.magicChi(laueInputs()); if (chi == null) { $('rLaue').insertAdjacentHTML('afterbegin', errBox('No asymmetry angle meets the magic condition for these settings.')); return; } $('lChi').value = (chi / DEG).toFixed(4); runLaue(); }
+  catch (e) { $('rLaue').innerHTML = errBox(e.message); }
+});
+function matDensity(inputId, rhoId) {
+  $(inputId).addEventListener('change', () => { const v = $(inputId).value.trim(); const hit = MATERIALS.find(m => m[0].toLowerCase() === v.toLowerCase()); if (hit) { $(rhoId).value = hit[1]; $(rhoId).dispatchEvent(new Event('input', { bubbles: true })); } });
+}
+matDensity('mA', 'mAr'); matDensity('mB', 'mBr'); matDensity('mS', 'mSr');
+$('matList').innerHTML = MATERIALS.map(m => `<option value="${m[0]}">${m[0]} · ${m[1]} g/cm³</option>`).join('');
+
+(window.XP_DATA ? Promise.resolve(window.XP_DATA) : fetch('data.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })).then(d => {
+  XP.setData(d);
+  const opts = Object.entries(d.crystals).map(([k, c]) => `<option value="${k}">${c.label}</option>`).join('');
+  document.querySelectorAll('.crystal-select').forEach(s => { s.innerHTML = opts; s.value = 'Si'; });
+  const syncB = () => document.querySelectorAll('.b-input').forEach(inp => { const sel = inp.closest('form').querySelector('.crystal-select'); inp.placeholder = String(d.crystals[sel.value].B); });
+  syncB(); document.querySelectorAll('.crystal-select').forEach(s => s.addEventListener('change', syncB));
+  $('loadStatus').hidden = true;
+  ready = true;
+  show(location.hash.slice(1) || 'dcm');
+}).catch(e => { $('loadStatus').innerHTML = errBox('Could not load the scattering tables: ' + e.message + '. Keep data.js and physics.js in the same folder as this page, then reload.'); });
+})();
+</script>
